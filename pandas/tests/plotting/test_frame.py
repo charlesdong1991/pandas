@@ -259,12 +259,14 @@ class TestDataFramePlots(TestPlotBase):
         assert ax.get_yscale() == 'symlog'
 
     @pytest.mark.parametrize("wrong_input", ["sm", "symlog"])
-    def test_invalid_logscale(self, wrong_input):
+    @pytest.mark.parametrize("input_param", ["logx", "logy", "loglog"])
+    def test_invalid_logscale(self, wrong_input, input_param):
+        # GH: 24867
         df = DataFrame({'a': np.arange(100)}, index=np.arange(100))
 
-        msg = "Wrong input for log option."
+        msg = "Valid inputs are boolean, None and 'sym'."
         with pytest.raises(ValueError, match=msg):
-            df.plot(logy=wrong_input)
+            df.plot(**{input_param: wrong_input})
 
     @pytest.mark.slow
     def test_xcompat(self):
