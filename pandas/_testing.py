@@ -8,7 +8,7 @@ import os
 from shutil import rmtree
 import string
 import tempfile
-from typing import Any, List, Optional, Union, cast
+from typing import Any, Callable, List, Optional, Type, Union, cast
 import warnings
 import zipfile
 
@@ -473,7 +473,7 @@ def close(fignum=None):
 
 
 @contextmanager
-def ensure_clean(filename=None, return_filelike=False):
+def ensure_clean(filename=None, return_filelike=False, **kwargs):
     """
     Gets a temporary path and agrees to remove on close.
 
@@ -485,23 +485,37 @@ def ensure_clean(filename=None, return_filelike=False):
     return_filelike : bool (default False)
         if True, returns a file-like which is *always* cleaned. Necessary for
         savefig and other functions which want to append extensions.
+    **kwargs
+        Additional keywords passed in for creating a temporary file.
+        :meth:`tempFile.TemporaryFile` is used when `return_filelike` is ``True``.
+        :meth:`tempfile.mkstemp` is used when `return_filelike` is ``False``.
+        Note that the `filename` parameter will be passed in as the `suffix`
+        argument to either function.
+
+    See Also
+    --------
+    tempfile.TemporaryFile
+    tempfile.mkstemp
     """
     filename = filename or ""
     fd = None
 
+    kwargs["suffix"] = filename
+
     if return_filelike:
-        f = tempfile.TemporaryFile(suffix=filename)
+        f = tempfile.TemporaryFile(**kwargs)
+
         try:
             yield f
         finally:
             f.close()
     else:
-        # don't generate tempfile if using a path with directory specified
+        # Don't generate tempfile if using a path with directory specified.
         if len(os.path.dirname(filename)):
             raise ValueError("Can't pass a qualified name to ensure_clean()")
 
         try:
-            fd, filename = tempfile.mkstemp(suffix=filename)
+            fd, filename = tempfile.mkstemp(**kwargs)
         except UnicodeEncodeError:
             import pytest
 
@@ -613,8 +627,8 @@ def assert_index_equal(
                 assert_attr_equal("dtype", l, r, obj=obj)
 
             # allow string-like to have different inferred_types
-            if l.inferred_type in ("string", "unicode"):
-                assert r.inferred_type in ("string", "unicode")
+            if l.inferred_type in ("string"):
+                assert r.inferred_type in ("string")
             else:
                 assert_attr_equal("inferred_type", l, r, obj=obj)
 
@@ -2743,3 +2757,24 @@ def convert_rows_list_to_csv_str(rows_list: List[str]):
     sep = os.linesep
     expected = sep.join(rows_list) + sep
     return expected
+
+
+def external_error_raised(
+    expected_exception: Type[Exception],
+) -> Callable[[Type[Exception], None], None]:
+    """
+    Helper function to mark pytest.raises that have an external error message.
+
+    Parameters
+    ----------
+    expected_exception : Exception
+        Expected error to raise.
+
+    Returns
+    -------
+    Callable
+        Regular `pytest.raises` function with `match` equal to `None`.
+    """
+    import pytest
+
+    return pytest.raises(expected_exception, match=None)

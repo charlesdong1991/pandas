@@ -19,12 +19,7 @@ from pandas import DataFrame, MultiIndex, Series, isna, to_datetime
 from pandas.core.construction import create_series_with_explicit_dtype
 from pandas.core.reshape.concat import concat
 
-from pandas.io.common import (
-    get_filepath_or_buffer,
-    get_handle,
-    infer_compression,
-    stringify_path,
-)
+from pandas.io.common import get_filepath_or_buffer, get_handle, infer_compression
 from pandas.io.json._normalize import convert_to_line_delimits
 from pandas.io.json._table_schema import build_table_schema, parse_table_schema
 from pandas.io.parsers import _validate_integer
@@ -56,7 +51,11 @@ def to_json(
             "'index=False' is only valid when 'orient' is 'split' or 'table'"
         )
 
-    path_or_buf = stringify_path(path_or_buf)
+    if path_or_buf is not None:
+        path_or_buf, _, _, _ = get_filepath_or_buffer(
+            path_or_buf, compression=compression, mode="w"
+        )
+
     if lines and orient != "records":
         raise ValueError("'lines' keyword only valid when 'orient' is records")
 
@@ -439,8 +438,17 @@ def read_json(
            Not applicable for ``orient='table'``.
 
     convert_dates : bool or list of str, default True
-        List of columns to parse for dates. If True, then try to parse
-        datelike columns. A column label is datelike if
+        If True then default datelike columns may be converted (depending on
+        keep_default_dates).
+        If False, no dates will be converted.
+        If a list of column names, then those columns will be converted and
+        default datelike columns may also be converted (depending on
+        keep_default_dates).
+
+    keep_default_dates : bool, default True
+        If parsing dates (convert_dates is not False), then try to parse the
+        default datelike columns.
+        A column label is datelike if
 
         * it ends with ``'_at'``,
 
@@ -451,9 +459,6 @@ def read_json(
         * it is ``'modified'``, or
 
         * it is ``'date'``.
-
-    keep_default_dates : bool, default True
-        If parsing dates, then parse the default datelike columns.
 
     numpy : bool, default False
         Direct decoding to numpy arrays. Supports numeric data only, but
@@ -936,7 +941,7 @@ class Parser:
                 if (new_data == data).all():
                     data = new_data
                     result = True
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 pass
 
         # coerce ints to 64
